@@ -1,0 +1,170 @@
+import * as cv from './opencv.js'
+
+class Processer {
+    ready = false;
+
+    whenReady(callback) {
+        cv['onRuntimeInitialized'] = () => {
+            this.ready = true;
+            if (typeof callback === "function") {
+                callback()
+            }
+        };
+        if(this.ready){
+            if (typeof callback === "function") {
+                callback()
+            }
+        }
+    }
+
+    orderPoints(points) {
+        let sorted = points.sort((a, b) => a[0] - b[0]);
+        let first_fourth = sorted.slice(0, 2).sort((a, b) => a[1] - b[1]);
+        let second_third = sorted.slice(2, 4).sort((a, b) => a[1] - b[1]);
+        //portrait
+        //return {tr: first_fourth[0], br: second_third[0], bl: second_third[1], tl: first_fourth[1]}
+        //landscape
+        return {tl: first_fourth[0], tr: second_third[0], br: second_third[1], bl: first_fourth[1]}
+    }
+
+    resize(img, height) {
+        window.console.log(img.matSize[0]);
+        let ratio = height / img.matSize[0];
+        cv.resize(img, img, new cv.Size(0, 0), ratio, ratio)
+    }
+
+    findContours(edges) {
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(edges, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+
+        let sortableContours = [];
+        for (let i = 0; i < contours.size(); ++i) {
+            let cnt = contours.get(i);
+            let area = cv.contourArea(cnt, false);
+            let perim = cv.arcLength(cnt, false);
+            sortableContours.push({areaSize: area, perimiterSize: perim, contour: cnt})
+        }
+        sortableContours.sort((item1, item2) => {
+            return (item1.areaSize > item2.areaSize) ? -1 : (item1.areaSize < item2.areaSize) ? 1 : 0;
+        });
+
+        let foundContour;
+        for (let contour of sortableContours) {
+            let approx = new cv.Mat();
+            cv.approxPolyDP(contour.contour, approx, .05 * sortableContours[0].perimiterSize, true);
+            if (approx.rows === 4) {
+                foundContour = approx;
+                break;
+            }
+        }
+
+        return this.orderPoints([
+            [foundContour.data32S[0], foundContour.data32S[1]],
+            [foundContour.data32S[2], foundContour.data32S[3]],
+            [foundContour.data32S[4], foundContour.data32S[5]],
+            [foundContour.data32S[6], foundContour.data32S[7]]]);
+    }
+
+    fourPointTransform(src, dst, pts){
+        let distance = (x, y) => Math.floor(Math.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2));
+
+        let width1 = distance(pts.br, pts.bl);
+        let width2 = distance(pts.tr, pts.tl);
+        let maxWidth = Math.max(width1, width2);
+
+        let height1 = distance(pts.tr, pts.br);
+        let height2 = distance(pts.tl, pts.bl);
+        let maxHeight = Math.max(height1, height2);
+
+        let finalDestCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, maxWidth - 1, 0, maxWidth - 1, maxHeight - 1, 0, maxHeight - 1]);
+        let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [pts.tl[0], pts.tl[1], pts.tr[0], pts.tr[1], pts.br[0], pts.br[1], pts.bl[0], pts.bl[1]]);
+        let dsize = new cv.Size(maxWidth, maxHeight);
+        let M = cv.getPerspectiveTransform(srcCoords, finalDestCoords);
+        cv.warpPerspective(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+        M.delete();
+
+    }
+
+    transformImage(src, dst) {
+        let scale_point = (pt) => [Math.floor(pt[0] * ratio), Math.floor(pt[1] * ratio)];
+        let scale = (pts) => ({
+            tl: scale_point(pts.tl),
+            bl: scale_point(pts.bl),
+            br: scale_point(pts.br),
+            tr: scale_point(pts.tr)
+        });
+
+        let cnt = new cv.Mat();
+        let height = 500;
+        let ratio = src.matSize[0] / height;
+
+        cv.cvtColor(src, cnt, cv.COLOR_RGB2GRAY, 0);
+        this.resize(cnt, height);
+        cv.GaussianBlur(cnt, cnt, new cv.Size(5, 5), 0);
+        cv.Canny(cnt, cnt, 75, 200);
+
+        let pts = scale(this.findContours(cnt));
+
+        this.fourPointTransform(src, dst, pts);
+
+        cv.resize(dst, dst, new cv.Size(src.cols, src.rows),0,0);
+        window.console.log(dst);
+
+        cnt.delete()
+    }
+
+    binarizeImage(src, dst){
+        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+        cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 117, 20);
+        cv.GaussianBlur(dst, dst, new cv.Size(1, 1), 30)
+
+    }
+
+    rotateImage(src, dst, degrees, rotations){
+        let dsize = new cv.Size(src.cols, src.rows);
+        let center = new cv.Point(src.cols / 2, src.rows / 2);
+        let M = cv.getRotationMatrix2D(center, rotations * degrees, 1);
+        cv.warpAffine(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+        M.delete()
+    }
+
+
+    transformCanvas(canvas) {
+        let src = cv.imread(canvas);
+        let dst = new cv.Mat();
+
+        this.transformImage(src, dst);
+
+        cv.imshow(canvas, dst);
+        src.delete();
+        dst.delete();
+    }
+
+    binarizeCanvas(canvas) {
+        let src = cv.imread(canvas);
+        let dst = new cv.Mat();
+
+        this.binarizeImage(src, dst);
+
+        cv.imshow(canvas, dst);
+        src.delete(); dst.delete();
+    }
+
+    rotateCanvas180(canvas, rotations) {
+        rotations = rotations % 2;
+        if(rotations === 0) return;
+
+        let src = cv.imread(canvas);
+        let dst = new cv.Mat();
+
+        this.rotateImage(src, dst, 180, rotations);
+        cv.imshow(canvas, dst);
+        src.delete(); dst.delete();
+    }
+
+
+
+}
+
+export default new Processer();
