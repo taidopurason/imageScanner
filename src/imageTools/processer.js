@@ -1,4 +1,3 @@
-//import * as cv from './opencv.js'
 const cv = require('./opencv.js');
 
 class Processer {

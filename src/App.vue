@@ -9,27 +9,27 @@
             <label for="binarize_checkbox">Binarize</label>
             <button @click="rotate">ROTATE</button>
         </div>
-        <canvas ref="background" id="background"></canvas>
+        <h2 v-show="!loaded">LOADING...</h2>
+        <canvas v-show="loaded" ref="background" id="background"></canvas>
 
 
     </div>
 </template>
 
 <script>
-    import Processer from "./processer"
+    import ImageTool from "./imageTools/imageTool.js"
 
     export default {
         name: 'App',
         data: () => {
             return {
-                ready: false,
+                loaded: false,
                 height: 1080,
                 width: 1920,
                 zoom: 1.0,
                 sample: require('./test3.jpg'),
                 transform: true,
                 binarize: true,
-                rotations: 0,
                 src: require('./test3.jpg'),
             }
         },
@@ -50,6 +50,8 @@
 
             },
             loadCanvas: function () {
+                this.loaded = false;
+
                 let img = new Image();
 
                 img.onload = () => {
@@ -62,27 +64,21 @@
                     cvs.width = img.naturalWidth * this.zoom;
                     cvs.height = img.naturalHeight * this.zoom;
                     ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
-                    this.processImage()
+                    ImageTool.processImage(this.transform, this.binarize, this.isLoaded, this.alertOnFail)
                 };
                 img.src = this.src;
             },
-            processImage: async function () {
-                Processer.loadOpenCV().then(async () => {
-                    if (this.transform) {
-                        const transformed = await Processer.transformCanvas("background");
-                        if (!transformed) window.alert("Could not find corners of the paper. Make sure that all corners are visible.");
-                    }
-                    if (this.binarize) {
-                        await Processer.binarizeCanvas("background")
-                    }
-                    if (this.rotations % 2 !== 0){
-                        await Processer.rotateCanvas180("background")
-                    }
-                });
-            },
             rotate: function () {
-                Processer.loadOpenCV().then(Processer.rotateCanvas180("background"))
+                ImageTool.rotate()
+            },
+            isLoaded: function () {
+                this.loaded = true
+            },
+            alertOnFail: function () {
+                alert("Could not find 4 corners!");
+                this.transform = false
             }
+
         },
         mounted() {
             this.loadCanvas("./test3.jpg");
