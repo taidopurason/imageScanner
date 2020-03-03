@@ -29,6 +29,7 @@
                 sample: require('./test3.jpg'),
                 transform: true,
                 binarize: true,
+                rotations: 0,
                 src: require('./test3.jpg'),
             }
         },

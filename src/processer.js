@@ -87,6 +87,10 @@ class Processer {
     }
 
     transformImage(src, dst) {
+        let cnt = new cv.Mat();
+        let height = 500;
+        let ratio = src.matSize[0] / height;
+
         let scale_point = (pt) => [Math.floor(pt[0] * ratio), Math.floor(pt[1] * ratio)];
         let scale = (pts) => ({
             tl: scale_point(pts.tl),
@@ -94,10 +98,6 @@ class Processer {
             br: scale_point(pts.br),
             tr: scale_point(pts.tr)
         });
-
-        let cnt = new cv.Mat();
-        let height = 500;
-        let ratio = src.matSize[0] / height;
 
         cv.cvtColor(src, cnt, cv.COLOR_RGB2GRAY, 0);
         this.resize(cnt, height);
@@ -113,8 +113,7 @@ class Processer {
         pts = scale(pts);
 
         this.fourPointTransform(src, dst, pts);
-
-        cv.resize(dst, dst, new cv.Size(src.cols, src.rows), 0, 0);
+        cv.resize(dst, dst, new cv.Size(src.cols, src.rows));
 
         cnt.delete();
     }
@@ -139,12 +138,15 @@ class Processer {
         return new Promise(resolve => {
             window.console.log("transforming canvas...");
             let src = cv.imread(canvas);
+            let dst = new cv.Mat();
 
-            if(this.transformImage(src, src))
+
+            if(this.transformImage(src, dst))
                 resolve(false);
 
-            cv.imshow(canvas, src);
+            cv.imshow(canvas, dst);
             src.delete();
+            dst.delete();
             resolve(true)
         })
     }
