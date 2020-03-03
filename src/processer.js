@@ -1,20 +1,16 @@
-import * as cv from './opencv.js'
+//import * as cv from './opencv.js'
+const cv = require('./opencv.js');
 
 class Processer {
-    ready = false;
-
-    whenReady(callback) {
-        cv['onRuntimeInitialized'] = () => {
-            this.ready = true;
-            if (typeof callback === "function") {
-                callback()
-            }
-        };
-        if(this.ready){
-            if (typeof callback === "function") {
-                callback()
-            }
+    loadOpenCV() {
+        if (cv.onRuntimeInitialized && cv && cv.Mat && cv.imread) {
+            return Promise.resolve()
         }
+        return new Promise(resolve => {
+            cv.onRuntimeInitialized = () => {
+                resolve()
+            }
+        })
     }
 
     orderPoints(points) {
@@ -28,7 +24,6 @@ class Processer {
     }
 
     resize(img, height) {
-        window.console.log(img.matSize[0]);
         let ratio = height / img.matSize[0];
         cv.resize(img, img, new cv.Size(0, 0), ratio, ratio)
     }
@@ -59,6 +54,11 @@ class Processer {
             }
         }
 
+        if (foundContour == null) {
+            window.console.log("contours not found");
+            return;
+        }
+
         return this.orderPoints([
             [foundContour.data32S[0], foundContour.data32S[1]],
             [foundContour.data32S[2], foundContour.data32S[3]],
@@ -66,7 +66,7 @@ class Processer {
             [foundContour.data32S[6], foundContour.data32S[7]]]);
     }
 
-    fourPointTransform(src, dst, pts){
+    fourPointTransform(src, dst, pts) {
         let distance = (x, y) => Math.floor(Math.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2));
 
         let width1 = distance(pts.br, pts.bl);
@@ -104,65 +104,70 @@ class Processer {
         cv.GaussianBlur(cnt, cnt, new cv.Size(5, 5), 0);
         cv.Canny(cnt, cnt, 75, 200);
 
-        let pts = scale(this.findContours(cnt));
+        let pts = this.findContours(cnt);
+
+        if (pts == null) {
+            return
+        }
+
+        pts = scale(pts);
 
         this.fourPointTransform(src, dst, pts);
 
-        cv.resize(dst, dst, new cv.Size(src.cols, src.rows),0,0);
-        window.console.log(dst);
+        cv.resize(dst, dst, new cv.Size(src.cols, src.rows), 0, 0);
 
-        cnt.delete()
+        cnt.delete();
     }
 
-    binarizeImage(src, dst){
+    binarizeImage(src, dst) {
         cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
         cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 117, 20);
         cv.GaussianBlur(dst, dst, new cv.Size(1, 1), 30)
 
     }
 
-    rotateImage(src, dst, degrees, rotations){
+    rotateImage(src, dst, degrees) {
         let dsize = new cv.Size(src.cols, src.rows);
         let center = new cv.Point(src.cols / 2, src.rows / 2);
-        let M = cv.getRotationMatrix2D(center, rotations * degrees, 1);
+        let M = cv.getRotationMatrix2D(center, degrees, 1);
         cv.warpAffine(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
         M.delete()
     }
 
 
     transformCanvas(canvas) {
+        window.console.log("transforming canvas...");
         let src = cv.imread(canvas);
-        let dst = new cv.Mat();
+        //let dst = new cv.Mat();
 
-        this.transformImage(src, dst);
+        this.transformImage(src, src);
 
-        cv.imshow(canvas, dst);
+        cv.imshow(canvas, src);
         src.delete();
-        dst.delete();
+        //dst.delete();
     }
 
     binarizeCanvas(canvas) {
+        window.console.log("binarizing canvas...");
         let src = cv.imread(canvas);
         let dst = new cv.Mat();
 
         this.binarizeImage(src, dst);
 
         cv.imshow(canvas, dst);
-        src.delete(); dst.delete();
+        src.delete();
+        dst.delete();
     }
 
-    rotateCanvas180(canvas, rotations) {
-        rotations = rotations % 2;
-        if(rotations === 0) return;
-
+    rotateCanvas180(canvas) {
         let src = cv.imread(canvas);
         let dst = new cv.Mat();
 
-        this.rotateImage(src, dst, 180, rotations);
+        this.rotateImage(src, dst, 180);
         cv.imshow(canvas, dst);
-        src.delete(); dst.delete();
+        src.delete();
+        dst.delete();
     }
-
 
 
 }

@@ -27,8 +27,8 @@
                 width: 1920,
                 zoom: 1.0,
                 sample: require('./test3.jpg'),
-                transform: false,
-                binarize: false,
+                transform: true,
+                binarize: true,
                 rotations: 0,
                 src: require('./test3.jpg'),
             }
@@ -49,10 +49,6 @@
                 reader.readAsDataURL(files[0]);
 
             },
-            isReady() {
-                window.console.log("running is ready");
-                Processer.whenReady()
-            },
             loadCanvas: function () {
                 let img = new Image();
 
@@ -67,36 +63,29 @@
                     cvs.height = img.naturalHeight * this.zoom;
                     ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
                     this.processImage()
-                    //this.$refs.paintable.setImageContext(ctx);
                 };
                 img.src = this.src;
             },
-            processImage: function () {
-                if (this.transform) {
-                    this.transformImage();
-                }
-                if (this.binarize) {
-                    this.binarizeImage();
-                }
-
-                //this.rotate()
-            },
-            binarizeImage: function () {
-                Processer.whenReady(() => Processer.binarizeCanvas("background"))
-            },
-            transformImage: function () {
-                Processer.whenReady(() => Processer.transformCanvas("background"))
+            processImage: async function () {
+                Processer.loadOpenCV().then(() => {
+                    if (this.transform) {
+                        Processer.transformCanvas("background")
+                    }
+                    if (this.binarize) {
+                        Processer.binarizeCanvas("background")
+                    }
+                    if (this.rotations % 2 !== 0){
+                        Processer.rotateCanvas180("background")
+                    }
+                });
             },
             increaseRotation: function () {
                 this.rotations += 1;
                 this.rotate()
             },
             rotate: function () {
-                Processer.whenReady(() => Processer.rotateCanvas180("background", this.rotations))
+                Processer.loadOpenCV().then(Processer.rotateCanvas180("background"))
             }
-        },
-        created() {
-            this.isReady();
         },
         mounted() {
             this.loadCanvas("./test3.jpg");
