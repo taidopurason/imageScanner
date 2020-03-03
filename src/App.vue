@@ -7,7 +7,7 @@
             <label for="transform_checkbox">Transform</label>
             <input type="checkbox" id="binarize_checkbox" v-model="binarize">
             <label for="binarize_checkbox">Binarize</label>
-            <button @click="increaseRotation">ROTATE</button>
+            <button @click="rotate">ROTATE</button>
         </div>
         <canvas ref="background" id="background"></canvas>
 
@@ -29,7 +29,6 @@
                 sample: require('./test3.jpg'),
                 transform: true,
                 binarize: true,
-                rotations: 0,
                 src: require('./test3.jpg'),
             }
         },
@@ -67,21 +66,18 @@
                 img.src = this.src;
             },
             processImage: async function () {
-                Processer.loadOpenCV().then(() => {
+                Processer.loadOpenCV().then(async () => {
                     if (this.transform) {
-                        Processer.transformCanvas("background")
+                        const transformed = await Processer.transformCanvas("background");
+                        if (!transformed) window.alert("Could not find corners of the paper. Make sure that all corners are visible.");
                     }
                     if (this.binarize) {
-                        Processer.binarizeCanvas("background")
+                        await Processer.binarizeCanvas("background")
                     }
                     if (this.rotations % 2 !== 0){
-                        Processer.rotateCanvas180("background")
+                        await Processer.rotateCanvas180("background")
                     }
                 });
-            },
-            increaseRotation: function () {
-                this.rotations += 1;
-                this.rotate()
             },
             rotate: function () {
                 Processer.loadOpenCV().then(Processer.rotateCanvas180("background"))

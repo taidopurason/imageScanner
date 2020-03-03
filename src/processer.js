@@ -48,7 +48,7 @@ class Processer {
         for (let contour of sortableContours) {
             let approx = new cv.Mat();
             cv.approxPolyDP(contour.contour, approx, .05 * sortableContours[0].perimiterSize, true);
-            if (approx.rows === 4) {
+            if (approx.rows === 4 && contour.areaSize > 100000) {
                 foundContour = approx;
                 break;
             }
@@ -107,7 +107,7 @@ class Processer {
         let pts = this.findContours(cnt);
 
         if (pts == null) {
-            return
+            return true;
         }
 
         pts = scale(pts);
@@ -136,37 +136,41 @@ class Processer {
 
 
     transformCanvas(canvas) {
-        window.console.log("transforming canvas...");
-        let src = cv.imread(canvas);
-        //let dst = new cv.Mat();
+        return new Promise(resolve => {
+            window.console.log("transforming canvas...");
+            let src = cv.imread(canvas);
 
-        this.transformImage(src, src);
+            if(this.transformImage(src, src))
+                resolve(false);
 
-        cv.imshow(canvas, src);
-        src.delete();
-        //dst.delete();
+            cv.imshow(canvas, src);
+            src.delete();
+            resolve(true)
+        })
     }
 
     binarizeCanvas(canvas) {
-        window.console.log("binarizing canvas...");
-        let src = cv.imread(canvas);
-        let dst = new cv.Mat();
+        return new Promise(resolve => {
+            window.console.log("binarizing canvas...");
+            let src = cv.imread(canvas);
 
-        this.binarizeImage(src, dst);
+            this.binarizeImage(src, src);
 
-        cv.imshow(canvas, dst);
-        src.delete();
-        dst.delete();
+            cv.imshow(canvas, src);
+            src.delete();
+            resolve()
+        })
     }
 
     rotateCanvas180(canvas) {
-        let src = cv.imread(canvas);
-        let dst = new cv.Mat();
+        return new Promise(resolve => {
+            let src = cv.imread(canvas);
 
-        this.rotateImage(src, dst, 180);
-        cv.imshow(canvas, dst);
-        src.delete();
-        dst.delete();
+            this.rotateImage(src, src, 180);
+            cv.imshow(canvas, src);
+            src.delete();
+            resolve()
+        })
     }
 
 
